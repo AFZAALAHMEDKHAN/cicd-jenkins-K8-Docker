@@ -48,7 +48,7 @@ pipeline {
         }
 
         stage('CODE ANALYSIS with SONARQUBE') {
-
+            agent {label 'KOPS'}    
             environment {
                 scannerHome = tool 'mysonarscanner4'
             }
