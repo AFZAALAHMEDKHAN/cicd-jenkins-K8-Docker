@@ -102,7 +102,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('',registryCredential) {
-                        // '' is for the registry url, so leaving empty == default dockerhub.
+                        // '' is for the registry url, so leaving empty == default dockerhub..
                         dockerImage.push("V$BUILD_NUMBER")
                         dockerImage.push("latest")
                     }
