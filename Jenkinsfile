@@ -1,30 +1,29 @@
 pipeline {
-    agent any
-/*
-	tools {
-        maven "maven3"
-    }
-*/
+    agents any
+
     environment {
         registry = "afzaalahmedkhan/vproapp"
         registryCredential = "dockerhub"
+        NEXUSIP = "172.31.20.92"
+        NEXUSPORT = "8081"
+        RELEASE_REPO = 'vprofile-release'
+        NEXUS_LOGIN = "nexuslogin"
     }
-
-    stages{
-
-        stage('BUILD'){
+    
+    stages {
+        stage('BUILD') {
             steps {
                 sh 'mvn clean install -DskipTests'
             }
             post {
-                success {
-                    echo 'Now Archiving...'
+                success{
+                    echo "Now Archiving...."
                     archiveArtifacts artifacts: '**/target/*.war'
                 }
             }
         }
 
-        stage('UNIT TEST'){
+        stage('Unit Test') {
             steps {
                 sh 'mvn test'
             }
@@ -36,7 +35,7 @@ pipeline {
             }
         }
 
-        stage ('CODE ANALYSIS WITH CHECKSTYLE'){
+        stage ('CHECKSTYLE ANALYSIS'){
             steps {
                 sh 'mvn checkstyle:checkstyle'
             }
@@ -50,11 +49,11 @@ pipeline {
         stage('CODE ANALYSIS with SONARQUBE') {
                
             environment {
-                scannerHome = tool 'mysonarscanner4'
+                scannerHome = tool 'Sonar6.2'
             }
 
             steps {
-                withSonarQubeEnv('sonarqube') {
+                withSonarQubeEnv('sonarserver') {
                     sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
                    -Dsonar.projectName=vprofile-repo \
                    -Dsonar.projectVersion=1.0 \
@@ -71,43 +70,56 @@ pipeline {
             }
         }
 
-        stage('Build Docker App Image') {
-            steps{
+        stage('Upload the artifact to Nexus') {
+            steps {
+                nexusArtifactUploader(
+                nexusVersion: 'nexus3',
+                protocol: 'http',
+                nexusUrl: "${NEXUSIP}:${NEXUSPORT}",
+                groupId: 'QA',
+                version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
+                repository: "${RELEASE_REPO}",
+                credentialsId: "${NEXUS_LOGIN}",
+                artifacts: [
+                    [artifactId: 'vproapp',
+                     classifier: '',
+                     file: 'target/vprofile-v2.war',
+                     type: 'war']
+                    ]
+                )
+            }
+        }
+
+
+        stage('Build App Image') {
+            steps {
                 script {
                     dockerImage = docker.build registry + ":V$BUILD_NUMBER"
                 }
+            }
         }
-
-        }
-
-        stage('Upload the Image') {
-            steps{
-                script{
+        stage('Upload Image') {
+            steps {
+                script {
                     docker.withRegistry('',registryCredential) {
-                        dockerImage.push("V$BUILD_NUMBER")
+                        // '' is for the registry url, leaving empty = default dockerhub
                         dockerImage.push("latest")
-
                     }
                 }
             }
         }
 
-        stage('Remove Unused docker images'){
+        stage('Remove Unused docker images') {
             steps{
                 sh "docker rmi $registry:V$BUILD_NUMBER"
             }
         }
 
-        stage("kubernetes deploying"){
+        stage("Deploying on K8s") {
             agent {label 'KOPS'}
                 steps{
                     sh "helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appImage=${registry}:V${BUILD_NUMBER} --namespace production"
                 }
         }
-
     }
-
-
 }
-
-
