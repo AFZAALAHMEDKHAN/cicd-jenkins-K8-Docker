@@ -94,7 +94,7 @@ pipeline {
         stage('Build App Image') {
             steps {
                 script {
-                    dockerImage = docker.build registry + ":V$BUILD_NUMBER"
+                    dockerImage = docker.build registry
                 }
             }
         }
@@ -103,6 +103,7 @@ pipeline {
                 script {
                     docker.withRegistry('',registryCredential) {
                         // '' is for the registry url, so leaving empty == default dockerhub.
+                        dockerImage.push("V$BUILD_NUMBER")
                         dockerImage.push("latest")
                     }
                 }
@@ -111,7 +112,7 @@ pipeline {
 
         stage('Remove Unused docker images') {
             steps{
-                sh "docker rmi $registry:V$BUILD_NUMBER"
+                sh "docker rmi $registry"
             }
         }
 
